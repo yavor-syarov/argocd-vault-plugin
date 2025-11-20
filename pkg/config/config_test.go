@@ -595,3 +595,183 @@ SOPS_AGE_KEY_FILE: age`
 
 	os.Unsetenv("SOPS_AGE_KEY_FILE")
 }
+
+func TestNewConfigCyberArkSecretsManager(t *testing.T) {
+	t.Run("Missing AVP_SECRETS_MANAGER_URL", func(t *testing.T) {
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_ACCOUNT", "cyberark-account")
+		os.Setenv("AVP_SECRETS_MANAGER_SSL_CERT", "cert")
+		os.Setenv("AVP_SECRETS_MANAGER_TOKEN_FILE", "/path/to/token/file")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_ACCOUNT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_SSL_CERT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_TOKEN_FILE")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err == nil || cfg != nil {
+			t.Fatal("Expected error due to missing AVP_SECRETS_MANAGER_URL, but got none")
+		}
+		if !strings.Contains(err.Error(), "required for CyberArk Secrets Manager") {
+			t.Errorf("Expected error message to contain 'required for CyberArk Secrets Manager', but got: %s", err.Error())
+		}
+	})
+
+	t.Run("Missing AVP_SECRETS_MANAGER_ACCOUNT", func(t *testing.T) {
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_URL", "http://my-cyberark-url")
+		os.Setenv("AVP_SECRETS_MANAGER_SSL_CERT", "cert")
+		os.Setenv("AVP_SECRETS_MANAGER_TOKEN_FILE", "/path/to/token/file")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_URL")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_SSL_CERT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_TOKEN_FILE")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err == nil || cfg != nil {
+			t.Fatal("Expected error due to missing AVP_SECRETS_MANAGER_ACCOUNT, but got none")
+		}
+		if !strings.Contains(err.Error(), "required for CyberArk Secrets Manager") {
+			t.Errorf("Expected error message to contain 'required for CyberArk Secrets Manager', but got: %s", err.Error())
+		}
+	})
+
+	t.Run("Missing AVP_SECRETS_MANAGER_SSL_CERT", func(t *testing.T) {
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_URL", "http://my-cyberark-url")
+		os.Setenv("AVP_SECRETS_MANAGER_ACCOUNT", "cyberark-account")
+		os.Setenv("AVP_SECRETS_MANAGER_TOKEN_FILE", "/path/to/token/file")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_URL")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_ACCOUNT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_TOKEN_FILE")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err == nil || cfg != nil {
+			t.Fatal("Expected error due to missing AVP_SECRETS_MANAGER_SSL_CERT, but got none")
+		}
+		if !strings.Contains(err.Error(), "required for CyberArk Secrets Manager") {
+			t.Errorf("Expected error message to contain 'required for CyberArk Secrets Manager', but got: %s", err.Error())
+		}
+	})
+
+	t.Run("Missing AVP_SECRETS_MANAGER_TOKEN_FILE", func(t *testing.T) {
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_URL", "http://my-cyberark-url")
+		os.Setenv("AVP_SECRETS_MANAGER_ACCOUNT", "cyberark-account")
+		os.Setenv("AVP_SECRETS_MANAGER_SSL_CERT", "cert")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_URL")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_ACCOUNT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_SSL_CERT")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err == nil || cfg != nil {
+			t.Fatal("Expected error due to missing AVP_SECRETS_MANAGER_TOKEN_FILE, but got none")
+		}
+		if !strings.Contains(err.Error(), "required for CyberArk Secrets Manager") {
+			t.Errorf("Expected error message to contain 'required for CyberArk Secrets Manager', but got: %s", err.Error())
+		}
+	})
+
+	t.Run("Invalid certificate", func(t *testing.T) {
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_URL", "http://my-cyberark-url")
+		os.Setenv("AVP_SECRETS_MANAGER_ACCOUNT", "cyberark-account")
+		os.Setenv("AVP_SECRETS_MANAGER_SSL_CERT", "cert")
+		os.Setenv("AVP_SECRETS_MANAGER_TOKEN_FILE", "/path/to/token/file")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_URL")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_ACCOUNT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_SSL_CERT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_TOKEN_FILE")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err == nil || cfg != nil {
+			t.Fatal("Expected error due to invalid certificate, but got none")
+		}
+		if !strings.Contains(err.Error(), "Can't append Secrets Manager SSL cert") {
+			t.Errorf("Expected error message to contain 'Can't append Secrets Manager SSL cert', but got: %s", err.Error())
+		}
+	})
+
+	t.Run("All required environment variables set and client creation", func(t *testing.T) {
+		validSSLCert := `-----BEGIN CERTIFICATE-----
+MIIFoTCCA4mgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwdjELMAkGA1UEBhMCVVMx
+FjAUBgNVBAgMDU1hc3NhY2h1c2V0dHMxDzANBgNVBAcMBk5ld3RvbjERMA8GA1UE
+CgwIQ3liZXJBcmsxDzANBgNVBAsMBkNvbmp1cjEaMBgGA1UEAwwRSW50ZXJtZWRp
+YXRlIENBIDEwIBcNMjAwNDI0MTYzODM1WhgPMjEyMDAzMzExNjM4MzVaMHIxCzAJ
+BgNVBAYTAlVTMRYwFAYDVQQIDA1NYXNzYWNodXNldHRzMQ8wDQYDVQQHDAZOZXd0
+b24xETAPBgNVBAoMCEN5YmVyQXJrMQ8wDQYDVQQLDAZDb25qdXIxFjAUBgNVBAMM
+DWNvbmp1ci1zZXJ2ZXIwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDO
+9kp5mFGvwM5sFlhECmqbaL5DPQXzk9CYWkHltPV6phWMgH/6c52gDs3DCERsRaXj
+WUrUp2dPtcF5E3qhWzNIlC/vwVuXGjvpLY43CVOGSqczoctgZMs9Q0NRcR3G/RLl
+O8dLwfOdGvNZYg80bMx8xB2zs24rAe8pVtvOTvbFzXWoLkXOoLYdq2Ce/mgn2R5b
+9FAUdjOFTtlXLLElHv4WFdOIDhyALf1Q2nBrykGw5wehWclOgpZG43rom0ppUqdN
+M+i+1/Me8dNtPW+oewrmjZM9IpmN3nwe33sNRBTwuZYQfTiFOw4iValUU1yMt3OA
+yqrrHzHDcK+Uq2/ShsGIHKU9e9Hxz6pCyx04wRMZ5Q6Z5QTrCcYThipOb3NU16fO
+fF5KZ3StNdRcE/Bv6M7lTz+R69zNs6wOj5tx7AshVABPhJMEmmMuFjZxybRJYcET
+L/m4Vxk/H2+D7zGNIbuTOF7htfUv0FWQDx6OY8cNk+ePbW8TJuVVvKWeRt5ApzRl
+IdPvq+bTYAMuy6IsCnSsSKseuOFw7Y0x3HvdHhM408LaSHTIZ4AbQ+5/eKJQZqgS
+n5mNo7PKKxvqki2pO7XsPQdHUJ4ZgHoNa54xKNJ0eMLNYGTcsfZ+HGhHP24ZQNaa
+1PpYU0yCCGyQL02nJaYUvr77hnYgLXY2HIUXNsQPSwIDAQABozswOTA3BgNVHREE
+MDAugg1jb25qdXItc2VydmVygh1jb25qdXItc2VydmVyLm15Y29tcGFueS5sb2Nh
+bDANBgkqhkiG9w0BAQsFAAOCAgEASJguTyHmJdAWad7JsAPPxHAwBKf+KFGZMq7l
+LdPq4fePlhuudsYhdhJv/PcfnZBpFgIZpiDWwi28HdRE7VqyvYSbBQUJ7snszJLL
+XbK4V1ZiHT9+mhnD/qVcBG7mTzD3fF3A+CwzPhQze3ws2RYN+a8Ex8dozw4H2DRP
+p1J79bDqLRbRslDzdZ7GK0htgj5FsEIA8IBXlerEAy3ZXIJzKdLKYjYu/10+2i0H
+Tx3CaSQcMZaQL+JR2VklvPlNLnglcKwHr/R9rqJ6k49vO5VGOQ9A1I2HsWe7liBO
+A4NAe1e8W2lJyklcCuFlEO9IFFBD1Ia+7rTeQcPuu+K4gxZcbZYohw/qmFcfyepy
+j4V6Afu2mJir+pLWUl2Q/Y4GaUVNTN1J8FfC7ayhTU9fh0eU4VpcGq4+0HKcsSka
+ikqg4bE950GlLYijOZUS+OJnMQbvhNuDhT0gJyBhafvutZLNBKG+PA735IRdPb6y
+6boiqvclGag32KS4NR5rk0JRGYN4PLntj3FsAEadQKtc/1nsos0WenQRSs0187bP
+3C50m0UvZZ8IP/bj2FJshgMs5HPQwUTNACuRi4kWTyQfeRjLYtKojHXFAfY9gqwF
+fg/3pECLly8p8at6Ry6CicuOPSXWS+Mf0+74iVnBEg/UEDddVriK2E6/MPzPSIia
+dC+b73B=
+-----END CERTIFICATE-----`
+
+		os.Setenv("AVP_TYPE", "cyberarksecretsmanager")
+		os.Setenv("AVP_SECRETS_MANAGER_URL", "http://my-cyberark-url")
+		os.Setenv("AVP_SECRETS_MANAGER_ACCOUNT", "cyberark-account")
+		os.Setenv("AVP_SECRETS_MANAGER_SSL_CERT", validSSLCert)
+		os.Setenv("AVP_SECRETS_MANAGER_TOKEN_FILE", "/path/to/token/file")
+		defer os.Unsetenv("AVP_TYPE")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_URL")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_ACCOUNT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_SSL_CERT")
+		defer os.Unsetenv("AVP_SECRETS_MANAGER_TOKEN_FILE")
+
+		v := viper.New()
+		cfg, err := config.New(v, &config.Options{})
+
+		if err != nil || cfg == nil {
+			t.Errorf("Expected no error, but got: %s", err)
+		}
+
+		// Assert that environment variables are correctly read
+		if v.GetString("AVP_TYPE") != "cyberarksecretsmanager" {
+			t.Errorf("Expected AVP_TYPE to be 'cyberarksecretsmanager', but got: %s", v.GetString("AVP_TYPE"))
+		}
+		if v.GetString("AVP_SECRETS_MANAGER_URL") != "http://my-cyberark-url" {
+			t.Errorf("Expected AVP_SECRETS_MANAGER_URL to be 'http://my-cyberark-url', but got: %s", v.GetString("AVP_SECRETS_MANAGER_URL"))
+		}
+		if v.GetString("AVP_SECRETS_MANAGER_ACCOUNT") != "cyberark-account" {
+			t.Errorf("Expected AVP_SECRETS_MANAGER_ACCOUNT to be 'cyberark-account', but got: %s", v.GetString("AVP_SECRETS_MANAGER_ACCOUNT"))
+		}
+		if v.GetString("AVP_SECRETS_MANAGER_SSL_CERT") != validSSLCert {
+			t.Errorf("Expected AVP_SECRETS_MANAGER_SSL_CERT to match validSSLCert")
+		}
+		if v.GetString("AVP_SECRETS_MANAGER_TOKEN_FILE") != "/path/to/token/file" {
+			t.Errorf("Expected AVP_SECRETS_MANAGER_TOKEN_FILE to be '/path/to/token/file', but got: %s", v.GetString("AVP_SECRETS_MANAGER_TOKEN_FILE"))
+		}
+	})
+}

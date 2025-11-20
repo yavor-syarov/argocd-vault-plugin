@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
 	gcpsm "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/1Password/connect-sdk-go/connect"
@@ -23,6 +24,7 @@ import (
 	"github.com/argoproj-labs/argocd-vault-plugin/pkg/utils"
 	"github.com/aws/aws-sdk-go-v2/config"
 	awssm "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/cyberark/conjur-api-go/conjurapi"
 	"github.com/hashicorp/vault/api"
 	ksm "github.com/keeper-security/secrets-manager-go/core"
 	"github.com/spf13/viper"
@@ -282,6 +284,36 @@ func New(v *viper.Viper, co *Options) (*Config, error) {
 	case types.KubernetesSecretBackend:
 		{
 			backend = backends.NewKubernetesSecret()
+		}
+	case types.CyberArkSecretsManagerBackend:
+		{
+			if !v.IsSet(types.EnvAvpSecretsManagerURL) ||
+				!v.IsSet(types.EnvAvpSecretsManagerAccount) ||
+				!v.IsSet(types.EnvAvpSecretsManagerSSLCert) ||
+				!v.IsSet(types.EnvAvpSecretsManagerTokenFile) {
+				return nil, fmt.Errorf("%s, %s, %s and %s are required for CyberArk Secrets Manager authentication",
+					types.EnvAvpSecretsManagerURL,
+					types.EnvAvpSecretsManagerAccount,
+					types.EnvAvpSecretsManagerSSLCert,
+					types.EnvAvpSecretsManagerTokenFile,
+				)
+			}
+			var cfg conjurapi.Config
+			cfg.ApplianceURL = v.GetString(types.EnvAvpSecretsManagerURL)
+			cfg.Account = v.GetString(types.EnvAvpSecretsManagerAccount)
+			cfg.SSLCert = v.GetString(types.EnvAvpSecretsManagerSSLCert)
+
+			cfg.SetIntegrationName("Argo CD")
+			cfg.SetIntegrationType("GitOps CD")
+			cfg.SetIntegrationVersion("1.0.0")
+			cfg.SetVendorName("Argo CD")
+			cfg.SetVendorVersion("")
+
+			smClient, err := conjurapi.NewClientFromTokenFile(cfg, v.GetString(types.EnvAvpSecretsManagerTokenFile))
+			if err != nil {
+				return nil, err
+			}
+			backend = backends.NewCyberArkSecretsManagerBackend(smClient)
 		}
 	default:
 		return nil, fmt.Errorf("Must provide a supported Vault Type, received %s", v.GetString(types.EnvAvpType))

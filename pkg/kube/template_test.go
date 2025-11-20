@@ -122,18 +122,18 @@ func TestToYAML_RemoveMissing(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/secret-remove-missing.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -299,7 +299,7 @@ func TestNewTemplate(t *testing.T) {
 
 		err := template.Replace()
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 
 		expected := map[string]interface{}{
@@ -362,7 +362,7 @@ func TestNewTemplate(t *testing.T) {
 
 		err := template.Replace()
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 
 		expected := map[string]interface{}{
@@ -465,7 +465,7 @@ func TestNewTemplate(t *testing.T) {
 
 		err := template.Replace()
 		if err != nil {
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 
 		expected := map[string]interface{}{
@@ -527,18 +527,18 @@ func TestToYAML_Deployment(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-deployment.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -583,18 +583,18 @@ func TestToYAML_Service(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-service.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -635,18 +635,18 @@ func TestToYAML_Secret_PlaceholderedData(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-secret.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -689,18 +689,18 @@ func TestToYAML_CRD_PlaceholderedData(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-custom-resource.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -735,18 +735,18 @@ func TestToYAML_CRD_FakePlaceholders(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-custom-resource-fake-placeholders.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -781,18 +781,18 @@ func TestToYAML_Secret_HardcodedData(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-secret4.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -832,18 +832,18 @@ func TestToYAML_Secret_MixedData(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-secret3.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -883,18 +883,18 @@ func TestToYAML_Secret_PlaceholderedStringData(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-secret2.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -934,18 +934,18 @@ func TestToYAML_ConfigMap(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-configmap.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -991,18 +991,18 @@ func TestToYAML_Ingress(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-ingress.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -1053,18 +1053,18 @@ func TestToYAML_CronJob(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-cronjob.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {
@@ -1110,18 +1110,18 @@ func TestToYAML_Job(t *testing.T) {
 
 	err := d.Replace()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expectedData, err := os.ReadFile("../../fixtures/output/small-job.yaml")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	expected := string(expectedData)
 	actual, err := d.ToYAML()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 
 	if !strings.Contains(actual, expected) {

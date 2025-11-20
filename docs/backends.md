@@ -808,3 +808,436 @@ type: Opaque
 data:
   password: <path:prod:my-secret#key>
 ```
+
+### CyberArk Secrets Manager
+
+This guide explains how to integrate ArgoCD Vault Plugin with CyberArk Secrets Manager for secure secret retrieval in your Kubernetes clusters. CyberArk Secrets Manager provides two authentication methods, each suited for different deployment scenarios.
+
+#### Prerequisites
+
+Before setting up CyberArk Secrets Manager integration, ensure you have:
+
+- **Helm 3.x** installed and configured
+- **kubectl** installed and configured to access your cluster with appropriate **RBAC permissions** to create namespaces, ConfigMaps, and modify deployments
+- **ArgoCD** deployed in your Kubernetes cluster (typically in the `argocd` namespace)
+- CyberArk Secrets Manager **certificate file**
+
+#### Authentication Methods
+CyberArk Secrets Manager supports two authentication methods for Kubernetes:
+1. **Certificate-based Kubernetes Authentication** - Uses mutual TLS (mTLS) for authentication
+2. **JWT (Token-based) Kubernetes Authentication** - Uses Kubernetes service account JWT tokens
+
+**Before you begin, collect the following information:**
+
+| Parameter             | Description                                                                                  |
+|-----------------------|----------------------------------------------------------------------------------------------|
+| **SM_ACCOUNT**        | The account name used when deploying Secrets Manager. **Example:** `conjur`                  |
+| **SM_URL**            | The Secrets Manager service URL.                                                             |
+| **SM_CERT_FILE_PATH** | The path to the Secrets Manager certificate file.                                            |
+| **SM_SERVICE_ID**     | The service ID that will be used for Kubernetes Authenticator.<br>**Example:** `dev-cluster` |
+
+
+
+#### Certificate-based Kubernetes Authentication
+
+Enables Kubernetes workloads to securely authenticate with CyberArk Secrets Manager using mutual TLS (mTLS).
+
+> **Note:** Certificate-based authentication is **not supported** by CyberArk Secrets Manager SaaS.
+
+##### 1. Initial Configuration
+
+**Kubernetes cluster admin:**
+
+In this step, you create the following Kubernetes resources for the Kubernetes Authenticator inside your Kubernetes cluster:
+
+- A namespace, called `cyberark-conjur`
+- A service account for the Kubernetes Authenticator, `authn-k8s-sa`
+- A cluster role with the necessary RBAC permissions, `conjur-clusterrole`
+- A Golden ConfigMap, `conjur-configmap`, containing connection and configuration information
+
+```bash
+helm repo add cyberark https://cyberark.github.io/helm-charts
+  
+helm install cluster-prep cyberark/conjur-config-cluster-prep \
+--namespace cyberark-conjur \
+--create-namespace \
+--set conjur.account="$SM_ACCOUNT" \
+--set conjur.applianceUrl="$SM_URL" \
+--set conjur.certificateBase64="$(cat $SM_CERT_FILE_PATH | base64 -w 0)" \
+--set authnK8s.authenticatorID="$SM_SERVICE_ID" \
+--set authnK8s.serviceAccount.name="authn-k8s-sa" \
+--set authnK8s.clusterRole.name="conjur-authn-role"
+```
+
+> **Note:** Use the goldenConfigMap `name` and `namespace` created here in the subsequent steps.
+
+##### 2. Define and Load a Kubernetes Authenticator Policy
+
+Refer to the [CyberArk documentation](https://docs.cyberark.com/conjur-enterprise/latest/en/content/integrations/k8s-ocp/k8s-k8s-authn.htm?tocpath=Integrations%7COpenShift%252FKubernetes%7CAuthenticate%20OpenShift%252FKubernetes%7C_____3) for detailed policy configuration.
+
+##### 3. Create a Workload Identity for Kubernetes
+
+Refer to the [CyberArk documentation](https://docs.cyberark.com/secrets-manager-sh/latest/en/content/integrations/k8s-ocp/k8s-app-identity.htm) for detailed workload identity setup.
+
+##### 4. Configure Kubernetes Authenticator Client
+
+###### 4.1. Create ConfigMap for the Kubernetes Authenticator Client
+
+```bash
+helm install namespace-prep cyberark/conjur-config-namespace-prep \
+--namespace argocd \
+--set authnK8s.goldenConfigMap="conjur-configmap" \
+--set authnK8s.namespace="cyberark-conjur"
+```
+
+###### 4.2. Create ConfigMap for the AVP Plugin
+
+```bash
+kubectl create configmap vault-configuration \
+--namespace argocd \
+--from-literal=AVP_SECRETS_MANAGER_ACCOUNT="$SM_ACCOUNT" \
+--from-literal=AVP_SECRETS_MANAGER_URL="$SM_URL" \
+--from-literal=AVP_TYPE=cyberarksecretsmanager \
+--from-literal=AVP_SECRETS_MANAGER_TOKEN_FILE=/run/conjur/access-token \
+--from-file=AVP_SECRETS_MANAGER_SSL_CERT="$SM_CERT_FILE_PATH"
+```
+
+###### 4.3. Define CMP Plugin Configuration
+
+Create a ConfigMap named `cmp-plugin` in the `argocd` namespace with the following content:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cmp-plugin
+  namespace: argocd
+data:
+  avp.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argocd-vault-plugin
+    spec:
+      allowConcurrency: true
+      discover:
+        find:
+          command:
+            - sh
+            - "-c"
+            - "find . -name '*.yaml' | xargs -I {} grep \"<path\\|avp\\.kubernetes\\.io\" {} | grep ."
+      generate:
+        command: ["argocd-vault-plugin", "generate", "."]
+      lockRepo: false
+```
+
+Apply the ConfigMap:
+
+```bash
+kubectl apply -f cmp-plugin.yaml
+```
+> **Note:** The example above assumes Kubernetes yaml manifests. Adjust the `command` accordingly if using other formats (e.g., Helm, Kustomize).
+
+###### 4.4. Patch argocd-repo-server
+
+Patch the argocd-repo-server deployment to integrate with CyberArk Secrets Manager using the Kubernetes Authenticator Client and ArgoCD Vault Plugin as sidecars.
+
+**Before applying, populate these values:**
+- `CONJUR_AUTHN_LOGIN`: The host identity for authentication (e.g., `host/argocd-repo-server`)
+- avp container `image`: An argocd-vault-plugin image with CyberArk Secrets Manager support
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: authenticator
+          image: cyberark/conjur-authn-k8s-client
+          imagePullPolicy: Always
+          env:
+            - name: CONJUR_AUTHN_LOGIN
+              value: <the host identity, e.g., host/argocd-repo-server>
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - configMapRef:
+                name: conjur-connect
+          volumeMounts:
+            - name: conjur-access-token
+              mountPath: /run/conjur
+        - name: avp
+          image: <image>
+          command:
+            - /var/run/argocd/argocd-cmp-server
+          envFrom:
+            - configMapRef:
+                name: vault-configuration
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+          volumeMounts:
+            - name: var-files
+              mountPath: /var/run/argocd
+            - name: plugins
+              mountPath: /home/argocd/cmp-server/plugins
+            - name: tmp
+              mountPath: /tmp
+            - name: cmp-plugin
+              mountPath: /home/argocd/cmp-server/config/plugin.yaml
+              subPath: avp.yaml
+            - name: conjur-access-token
+              mountPath: /run/conjur
+        - name: argocd-repo-server
+          volumeMounts:
+            - name: argocd-repo-server-secret
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      volumes:
+        - name: conjur-access-token
+          emptyDir:
+            medium: Memory
+        - name: cmp-plugin
+          configMap:
+            name: cmp-plugin
+            defaultMode: 420
+        - name: argocd-repo-server-secret
+          secret:
+            secretName: argocd-repo-server-secret
+            defaultMode: 511
+            optional: true
+```
+
+Apply the patch:
+
+```bash
+kubectl patch deployment argocd-repo-server -n argocd --patch-file=patch.yaml
+```
+
+##### 5. Proxy configuration (if needed)
+If your CyberArk Secrets Manager is behind a reverse proxy that terminates the TLS connection, configure the proxy to forward the client certificate using the `X-SSL-Client-Certificate` header.
+
+For example, with NGINX as a reverse proxy, add the following directive inside the `server` block (ensure SSL client certificate authentication is enabled):
+
+```nginx
+proxy_set_header X-SSL-Client-Certificate $ssl_client_escaped_cert;
+```
+
+#### JWT Authentication
+
+The JWT authentication method uses short-lived JWT tokens issued by the Kubernetes API server, mounted as a projected volume. The default TTL is 1 hour (3600 seconds), configurable via `expirationSeconds`. Kubernetes automatically rotates tokens before expiration to ensure continuous authentication.
+
+> **Note:** For more details, see the [CyberArk JWT authentication documentation](https://docs.cyberark.com/conjur-enterprise/latest/en/content/integrations/k8s-ocp/k8s-jwt-authn.htm?tocpath=Integrations%7COpenShift%252FKubernetes%7CAuthenticate%20OpenShift%252FKubernetes%7C_____2).
+
+##### 1. Initial Configuration
+
+**Kubernetes cluster admin:**
+
+In this step, you create the following Kubernetes resources for the Kubernetes Authenticator inside your Kubernetes cluster:
+
+- A namespace, called `cyberark-conjur-jwt`
+- A Golden ConfigMap, `conjur-configmap`, containing Conjur connection and configuration information
+
+```bash
+helm repo add cyberark https://cyberark.github.io/helm-charts
+
+helm install cluster-prep cyberark/conjur-config-cluster-prep \
+--namespace "cyberark-conjur-jwt" \
+--create-namespace \
+--set conjur.account="$SM_ACCOUNT" \
+--set conjur.applianceUrl="$SM_URL" \
+--set conjur.certificateBase64="$(cat $SM_CERT_FILE_PATH | base64 -w 0)" \
+--set authnK8s.authenticatorID="$SM_SERVICE_ID" \
+--set authnK8s.clusterRole.create=false \
+--set authnK8s.serviceAccount.create=false
+```
+
+> **Note:** Use the goldenConfigMap `name` and `namespace` created here in the subsequent steps.
+
+##### 2. Define and Load a Kubernetes Authenticator Policy
+
+Refer to the [CyberArk documentation](https://docs.cyberark.com/secrets-manager-sh/latest/en/content/integrations/k8s-ocp/k8s-jwt-authn.htm) for detailed policy configuration.
+
+##### 3. Create a Workload Identity for Kubernetes
+
+Refer to the [CyberArk documentation](https://docs.cyberark.com/secrets-manager-sh/latest/en/content/integrations/k8s-ocp/cjr-k8s-authn-client-authjwt.htm) for detailed workload identity setup.
+
+##### 4. Configure Kubernetes Authenticator Client
+
+###### 4.1. Create ConfigMap for Kubernetes Authenticator Client
+
+```bash
+helm install namespace-prep cyberark/conjur-config-namespace-prep \
+--namespace argocd \
+--set conjurConfigMap.authnMethod="authn-jwt" \
+--set authnK8s.goldenConfigMap="conjur-configmap" \
+--set authnK8s.namespace="cyberark-conjur-jwt" \
+--set authnRoleBinding.create="false"
+```
+
+###### 4.2. Create ConfigMap for AVP Plugin
+
+```bash
+kubectl create configmap vault-configuration \
+--namespace argocd \
+--from-literal=AVP_SECRETS_MANAGER_ACCOUNT="$SM_ACCOUNT" \
+--from-literal=AVP_SECRETS_MANAGER_URL="$SM_URL" \
+--from-literal=AVP_TYPE=cyberarksecretsmanager \
+--from-literal=AVP_SECRETS_MANAGER_TOKEN_FILE=/run/conjur/access-token \
+--from-file=AVP_SECRETS_MANAGER_SSL_CERT="$SM_CERT_FILE_PATH"
+```
+
+###### 4.3. Define CMP Plugin Configuration
+
+Create a ConfigMap named `cmp-plugin` in the `argocd` namespace with the following content:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cmp-plugin
+  namespace: argocd
+data:
+  avp.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: argocd-vault-plugin
+    spec:
+      allowConcurrency: true
+      discover:
+        find:
+          command:
+            - sh
+            - "-c"
+            - "find . -name '*.yaml' | xargs -I {} grep \"<path\\|avp\\.kubernetes\\.io\" {} | grep ."
+      generate:
+        command: ["argocd-vault-plugin", "generate", "."]
+      lockRepo: false
+```
+
+Apply the ConfigMap:
+
+```bash
+kubectl apply -f cmp-plugin.yaml
+```
+> **Note:** The example above assumes Kubernetes yaml manifests. Adjust the `command` accordingly if using other formats (e.g., Helm, Kustomize).
+
+###### 4.4. Patch argocd-repo-server
+
+Patch the argocd-repo-server Deployment to enable CyberArk Secrets Manager integration using the Kubernetes Authenticator Client as a sidecar container for authentication. The authenticator uses a JWT token (from the projected service account token) to authenticate with CyberArk Secrets Manager and writes the access token to a shared in-memory volume.
+
+The AVP (ArgoCD Vault Plugin) container reads the access token from the shared memory volume (`/run/conjur`) and uses the `vault-configuration` ConfigMap to fetch secrets.
+
+**Before applying, populate these values:**
+- avp container `image`: An argocd-vault-plugin image with CyberArk Secrets Manager support
+- serviceAccountToken `audience`: The audience value as defined in your CyberArk Secrets Manager authn policy
+
+```yaml
+# patch_repo_server.yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: authenticator
+          image: cyberark/conjur-authn-k8s-client
+          imagePullPolicy: Always
+          env:
+            - name: JWT_TOKEN_PATH
+              value: /var/run/secrets/tokens/token
+          envFrom:
+            - configMapRef:
+                name: conjur-connect
+          volumeMounts:
+            - name: conjur-access-token
+              mountPath: /run/conjur
+            - name: argocd-repo-server-secret
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: avp
+          image: <image>
+          imagePullPolicy: Always
+          command:
+            - /var/run/argocd/argocd-cmp-server
+          envFrom:
+            - configMapRef:
+                name: vault-configuration
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+          volumeMounts:
+            - name: var-files
+              mountPath: /var/run/argocd
+            - name: plugins
+              mountPath: /home/argocd/cmp-server/plugins
+            - name: tmp
+              mountPath: /tmp
+            - name: cmp-plugin
+              mountPath: /home/argocd/cmp-server/config/plugin.yaml
+              subPath: avp.yaml
+            - name: conjur-access-token
+              mountPath: /run/conjur
+        - name: argocd-repo-server
+          volumeMounts:
+            - name: argocd-repo-server-secret
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      volumes:
+        - name: conjur-access-token
+          emptyDir:
+            medium: Memory
+        - name: argocd-repo-server-secret
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 6000
+                  audience: <audience>
+        - name: cmp-plugin
+          configMap:
+            name: cmp-plugin
+            defaultMode: 420
+```
+
+Apply the patch:
+
+```bash
+kubectl patch deployment argocd-repo-server -n argocd --patch-file=patch.yaml
+```
+
+---
+
+#### Secret Retrieval
+
+Once authentication is set up, secrets can be retrieved from CyberArk Secrets Manager using either path annotations or inline paths in your Kubernetes Secret manifests.
+
+For detailed information on secret retrieval patterns and usage, refer to the [official Argo CD Vault Plugin documentation](https://argocd-vault-plugin.readthedocs.io/en/stable/howitworks/).
+
+---
+
+#### Troubleshooting
+1. **Verify ConfigMaps are created:**
+   ```bash
+   kubectl get configmap -n argocd conjur-connect vault-configuration cmp-plugin -o yaml
+   ```
+2. **Check argocd-repo-server pods:**
+   ```bash
+   kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-repo-server
+   ```
+3. **Inspect authenticator logs:**
+   ```bash
+   kubectl logs -n argocd <pod-name> -c authenticator --tail=50
+   ```
+4. **Verify access token is being written:**
+   ```bash
+   kubectl exec -n argocd <pod-name> -c avp -- ls -la /run/conjur/
+   ```
+
+##### Additional Resources
+
+- [CyberArk Kubernetes Authentication Documentation](https://docs.cyberark.com/secrets-manager-sh/latest/en/content/integrations/k8s-ocp/k8s-admin-lp.htm?tocpath=Integrations%7COpenShift%252FKubernetes%7CAuthenticate%20OpenShift%252FKubernetes%7C_____0)
+- [ArgoCD Vault Plugin Documentation](https://argocd-vault-plugin.readthedocs.io/)
+- [CyberArk Community Forums](https://community.cyberark.com/s/)
